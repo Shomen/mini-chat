@@ -1,12 +1,12 @@
 import {createServer} from 'node:http'
-import StompSever from 'stomp-broker-js'
+import StompServer from 'stomp-broker-js'
 
 const server = createServer((req, res)=>{
     res.writeHead(200, {'Content-Type': 'text/plain'})
     res.end('chat server is running')
 })
 
-const broker = new StompSever({
+const broker = new StompServer({
   server,
   path: '/stomp',
 })

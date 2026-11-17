@@ -13,7 +13,7 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [name, setName] = useState('')
   const [displayName, setDisplayName] = useState<string | null>(null)
-  const clientRef = useRef<Client | null> (null)
+  const clientRef = useRef<Client | null>(null)
   const [connected, setConnected] = useState(false)
   
   useEffect(() => {
@@ -267,7 +267,7 @@ function App() {
         </section>
       </div>
     </main>
-  ) // Return}
+  ) // Return
   
 
 }//App
