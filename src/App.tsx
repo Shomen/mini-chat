@@ -1,9 +1,11 @@
-import {useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
+import { Client } from '@stomp/stompjs'
 import './App.css'
 
 type ChatMessage = {
   id: string
   text: string
+  sender: string
 }
 
 function App() {
@@ -11,19 +13,91 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [name, setName] = useState('')
   const [displayName, setDisplayName] = useState<string | null>(null)
+  const clientRef = useRef<Client | null> (null)
+  const [connected, setConnected] = useState(false)
   
+  useEffect(() => {
+    if (displayName === null) return
+
+    let active = true
+
+    const client = new Client({
+      brokerURL: 'ws://127.0.0.1:3001/stomp',
+      reconnectDelay: 3000,
+
+      onConnect: () => {
+        if (!active) return
+
+        client.subscribe('/topic/chat', (frame) => {
+          if (!active) return
+
+          try {
+            const incoming: unknown = JSON.parse(frame.body)
+
+            if (
+              typeof incoming !== 'object' ||
+              incoming === null ||
+              !('id' in incoming) ||
+              !('text' in incoming) ||
+              !('sender' in incoming) ||
+              typeof incoming.id !== 'string' ||
+              typeof incoming.text !== 'string' ||
+              typeof incoming.sender !== 'string'
+            ) {
+              return
+            }
+
+            const received: ChatMessage = {
+              id: incoming.id,
+              text: incoming.text,
+              sender: incoming.sender,
+            }
+
+            setMessages((previous) => [...previous, received])
+          } catch {
+            console.error('Received an invalid chat message')
+          }
+        })
+
+        setConnected(true)
+      },
+
+      onWebSocketClose: () => {
+        if (active) setConnected(false)
+      },
+
+      onStompError: (frame) => {
+        console.error('STOMP error:', frame.headers.message)
+      },
+    })
+
+    clientRef.current = client
+    client.activate()
+
+    return () => {
+      active = false
+      clientRef.current = null
+      void client.deactivate()
+    }
+  }, [displayName])
+
   function handleSend() {
     const text = message.trim()
-    if(!text) return
+    const client = clientRef.current
+
+    if (!text || displayName === null || !client?.connected) return
 
     const newMessage: ChatMessage = {
       id: crypto.randomUUID(),
       text,
+      sender: displayName,
     }
 
-    setMessages(
-      (prevsMessage) => [...prevsMessage,newMessage]
-    )
+    client.publish({
+      destination: '/app/chat',
+      body: JSON.stringify(newMessage),
+    })
+
     setMessage('')
   }
 
@@ -130,8 +204,8 @@ function App() {
             <h2 id="chat-heading" className="font-semibold">
               Shared chat
             </h2>
-            <p className="text-sm text-gray-500">
-              no message yet
+            <p role="status" className="text-sm text-gray-500">
+              {connected ? 'Connected' : 'Connecting…'}
             </p>
           </header>
 
@@ -148,7 +222,7 @@ function App() {
                     className="wrap-break-word rounded-lg bg-blue-50 p-3"
                   >
                     <p className="text-sm font-semibold text-blue-700">
-                      {displayName} (you)
+                      {item.sender}
                     </p>
                     <p className="whitespace-pre-wrap">{item.text}</p>
                   </li>
@@ -184,7 +258,7 @@ function App() {
 
             <button
               type="submit"
-              disabled={!message.trim()}
+              disabled={!message.trim() || !connected}
               className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
             >
               Send

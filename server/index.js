@@ -6,9 +6,13 @@ const server = createServer((req, res)=>{
     res.end('chat server is running')
 })
 
-new StompSever({
-    server,
-    path: '/stomp',
+const broker = new StompSever({
+  server,
+  path: '/stomp',
+})
+
+broker.subscribe('/app/chat', (body) => {
+  broker.send('/topic/chat', {}, body)
 })
 
 server.listen(3001, '127.0.0.1', () => {
